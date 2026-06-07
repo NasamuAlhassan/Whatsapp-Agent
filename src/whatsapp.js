@@ -63,6 +63,27 @@ client.on('qr', async (qr) => {
   setTimeout(() => { suppressLogs = false; }, 3000);
 });
 
+// ── Authenticated (QR scanned, server verifying) ──────────────────────────────
+
+client.on('authenticated', () => {
+  suppressLogs = false;
+  console.log(`[${ts()}] 🔐 WhatsApp authenticated — syncing chats...`);
+  try {
+    const server = require('./server');
+    server.broadcast({ type: 'authenticated' });
+  } catch {}
+});
+
+// ── Auth failure ──────────────────────────────────────────────────────────────
+
+client.on('auth_failure', (msg) => {
+  console.error(`[${ts()}] ❌ Auth failed: ${msg}`);
+  try {
+    const server = require('./server');
+    server.broadcast({ type: 'auth_failure', data: String(msg) });
+  } catch {}
+});
+
 // ── Ready ────────────────────────────────────────────────────────────────────
 
 client.on('ready', async () => {

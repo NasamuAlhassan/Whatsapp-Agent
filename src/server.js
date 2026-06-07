@@ -36,8 +36,9 @@ app.get('/', basicAuth, (req, res) => {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let waConnected   = false;
+let waConnected    = false;
 let lastDigestTime = null;
+let cachedChats    = null;   // Resent to new WS clients if already connected
 
 // ── API: Status ───────────────────────────────────────────────────────────────
 
@@ -118,6 +119,10 @@ app.post('/api/ask', basicAuth, async (req, res) => {
 
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'status', data: { connected: waConnected } }));
+  // If WhatsApp is already connected, replay cached chats immediately
+  if (waConnected && cachedChats) {
+    ws.send(JSON.stringify({ type: 'chats', data: cachedChats }));
+  }
 });
 
 function broadcast(eventObject) {
@@ -127,8 +132,9 @@ function broadcast(eventObject) {
       try { ws.send(payload); } catch {}
     }
   }
-  if (eventObject.type === 'status')  waConnected   = eventObject.data.connected;
+  if (eventObject.type === 'status')  waConnected    = eventObject.data.connected;
   if (eventObject.type === 'digest')  lastDigestTime = Date.now();
+  if (eventObject.type === 'chats')   cachedChats    = eventObject.data;
 }
 
 // Heartbeat every 10 s so dashboard never shows stale status
