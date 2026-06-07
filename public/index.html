@@ -159,9 +159,9 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
   flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative
 }
 
-/* QR / Sync Overlay */
+/* QR / Sync Overlay — scoped to the right message panel only, not full screen */
 .qr-overlay{
-  position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
   background:rgba(7,5,20,.75);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)
 }
 .qr-overlay.hidden{display:none}
@@ -718,14 +718,17 @@ function connectWS(){
 
     if(data.type === 'status'){
       setStatus(data.data.connected);
-      if(data.data.connected && allChats.length === 0){
-        // Connected but chats not yet received — show skeleton sidebar
-        isSyncing = true;
+      if(!data.data.connected){
+        // Disconnected — if no chats at all, show QR panel so user can scan/reconnect
+        if(allChats.length === 0) document.getElementById('qrOverlay').classList.remove('hidden');
+        // If we have chats (disk cache or previously loaded): keep sidebar as-is, just show status
+      } else {
+        // Connected — hide the QR panel
         hideOverlay();
-        showSkeletons();
-        showSyncBanner();
-      } else if(data.data.connected && allChats.length > 0){
-        hideOverlay();
+        if(allChats.length === 0){
+          // No disk cache: show skeletons while we wait for fresh chats
+          isSyncing = true; showSkeletons(); showSyncBanner();
+        }
       }
     }
 
@@ -734,15 +737,13 @@ function connectWS(){
     }
 
     if(data.type === 'authenticated'){
-      // QR scanned — drop the QR overlay, show skeleton sidebar in background
+      // QR just scanned — hide QR overlay; sidebar keeps cached chats or shows skeletons
       isSyncing = true;
       hideOverlay();
-      showSkeletons();
-      showSyncBanner();
+      if(allChats.length === 0){ showSkeletons(); showSyncBanner(); }
     }
 
     if(data.type === 'auth_failure'){
-      // Show error in QR card, wait for new QR
       document.getElementById('qrOverlay').classList.remove('hidden');
       document.getElementById('authError').style.display = 'block';
       document.getElementById('qrLoading').style.display = 'block';
@@ -750,20 +751,21 @@ function connectWS(){
     }
 
     if(data.type === 'qr_done'){
-      // Connection finalised — if no chats yet, ensure skeleton is showing
-      if(allChats.length === 0){ isSyncing = true; showSkeletons(); showSyncBanner(); }
       hideOverlay();
+      if(allChats.length === 0){ isSyncing = true; showSkeletons(); showSyncBanner(); }
     }
 
     if(data.type === 'chats'){
       isSyncing = false;
       allChats = data.data;
       renderChatList(allChats);
-      hideOverlay();
       hideSyncBanner();
-      // Remove any in-chat sync indicators
       document.querySelectorAll('.sync-msg-indicator').forEach(el => el.remove());
-      document.getElementById('emptyState').style.display = 'flex';
+      // Only collapse the QR panel and show empty state once WhatsApp is actually connected
+      if(waConnected){
+        hideOverlay();
+        if(!activeChatId) document.getElementById('emptyState').style.display = 'flex';
+      }
     }
 
     if(data.type === 'message'){

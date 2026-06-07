@@ -99,11 +99,11 @@ client.on('ready', async () => {
   const telegram = require('./telegram');
   telegram.setConnected(true);
 
-  // Load and broadcast all chats, then kick off the first AI digest
+  // Load and broadcast chats as soon as WhatsApp is ready, then kick off first AI digest
   setTimeout(async () => {
     await broadcastChats();
     setTimeout(() => buffer.runDigestNow(), 8000);
-  }, 4000);
+  }, 1000);
 });
 
 // ── New message ───────────────────────────────────────────────────────────────
@@ -225,7 +225,6 @@ async function getChats() {
 
 async function getChatMessages(chatId, limit = 50) {
   const chat = await client.getChatById(chatId);
-  await chat.fetchMessages({ limit });
   const messages = await chat.fetchMessages({ limit });
   return messages.map(m => ({
     id:         m.id._serialized,

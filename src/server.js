@@ -1,9 +1,12 @@
 const http    = require('http');
 const path    = require('path');
+const fs      = require('fs');
 const express = require('express');
 const WebSocket = require('ws');
 const config  = require('../config');
 const database = require('./database');
+
+const CHAT_CACHE_PATH = path.join(__dirname, '..', '.chat_cache.json');
 
 const app    = express();
 const server = http.createServer(app);
@@ -38,7 +41,13 @@ app.get('/', basicAuth, (req, res) => {
 
 let waConnected    = false;
 let lastDigestTime = null;
-let cachedChats    = null;   // Resent to new WS clients if already connected
+
+// Load chat list from disk so returning users see chats instantly on page load
+let cachedChats = null;
+try {
+  cachedChats = JSON.parse(fs.readFileSync(CHAT_CACHE_PATH, 'utf8'));
+  console.log(`[${new Date().toTimeString().slice(0,8)}] [server] Loaded ${cachedChats.length} cached chats from disk`);
+} catch { /* first run, no cache yet */ }
 
 // ── API: Status ───────────────────────────────────────────────────────────────
 
@@ -129,8 +138,9 @@ app.post('/api/ask', basicAuth, async (req, res) => {
 
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'status', data: { connected: waConnected } }));
-  // If WhatsApp is already connected, replay cached chats immediately
-  if (waConnected && cachedChats) {
+  // Always send cached chats immediately — even if disconnected, the user sees their
+  // last known chat list while WhatsApp reconnects in the background
+  if (cachedChats) {
     ws.send(JSON.stringify({ type: 'chats', data: cachedChats }));
   }
 });
@@ -144,7 +154,11 @@ function broadcast(eventObject) {
   }
   if (eventObject.type === 'status')  waConnected    = eventObject.data.connected;
   if (eventObject.type === 'digest')  lastDigestTime = Date.now();
-  if (eventObject.type === 'chats')   cachedChats    = eventObject.data;
+  if (eventObject.type === 'chats') {
+    cachedChats = eventObject.data;
+    // Persist to disk so next page load shows chats instantly (non-blocking)
+    fs.writeFile(CHAT_CACHE_PATH, JSON.stringify(eventObject.data), () => {});
+  }
 }
 
 // Heartbeat every 10 s so dashboard never shows stale status
