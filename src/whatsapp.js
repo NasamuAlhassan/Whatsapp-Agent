@@ -55,10 +55,16 @@ client.on('qr', async (qr) => {
 
 client.on('ready', () => {
   retryCount = 0;
+  suppressLogs = false;
   console.log(`[${ts()}] ✅ WhatsApp connected`);
 
   const server = require('./server');
+  // Broadcast twice — once immediately, once after a short delay as safety net
   server.broadcast({ type: 'status', data: { connected: true } });
+  setTimeout(() => server.broadcast({ type: 'status', data: { connected: true } }), 2000);
+
+  // Also hide any QR panel on connected clients
+  server.broadcast({ type: 'qr_done' });
 
   const telegram = require('./telegram');
   telegram.setConnected(true);

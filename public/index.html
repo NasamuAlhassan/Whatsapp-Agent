@@ -839,10 +839,13 @@
 
       if (data.type === 'status') {
         setStatus(data.data.connected);
-        // Hide QR panel once connected
         if (data.data.connected) {
           document.getElementById('qrPanel').classList.remove('visible');
         }
+      }
+
+      if (data.type === 'qr_done') {
+        document.getElementById('qrPanel').classList.remove('visible');
       }
 
       if (data.type === 'message') {

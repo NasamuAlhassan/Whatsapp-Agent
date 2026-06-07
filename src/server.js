@@ -121,8 +121,14 @@ app.post('/api/ask', basicAuth, async (req, res) => {
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 
 wss.on('connection', (ws) => {
+  // Send current state immediately on connect
   ws.send(JSON.stringify({ type: 'status', data: { connected: waConnected } }));
 });
+
+// Heartbeat: push real connection state every 10 s so dashboard never gets stale
+setInterval(() => {
+  broadcast({ type: 'status', data: { connected: waConnected } });
+}, 10000);
 
 function broadcast(eventObject) {
   const payload = JSON.stringify(eventObject);
