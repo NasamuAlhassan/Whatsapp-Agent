@@ -9,13 +9,8 @@ const MAX_RETRIES = 5;
 let retryCount = 0;
 let suppressLogs = false;
 
-function ts() {
-  return new Date().toTimeString().slice(0, 8);
-}
-
-function log(...args) {
-  if (!suppressLogs) console.log(...args);
-}
+function ts() { return new Date().toTimeString().slice(0, 8); }
+function log(...args) { if (!suppressLogs) console.log(...args); }
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -35,12 +30,27 @@ const client = new Client({
   },
 });
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function msgPreview(msg) {
+  if (!msg) return '';
+  const t = msg.type;
+  if (t === 'image')    return '📷 Photo';
+  if (t === 'video')    return '🎥 Video';
+  if (t === 'audio' || t === 'ptt') return '🎵 Audio';
+  if (t === 'document') return '📄 Document';
+  if (t === 'sticker')  return '🌟 Sticker';
+  if (t === 'location') return '📍 Location';
+  return msg.body || '';
+}
+
+// ── QR ───────────────────────────────────────────────────────────────────────
+
 client.on('qr', async (qr) => {
   console.clear();
   console.log('📱 QR ready — scan in the dashboard or here:\n');
   qrcode.generate(qr, { small: true });
 
-  // Generate PNG data URL on the server and broadcast to dashboard
   try {
     const dataUrl = await QRCode.toDataURL(qr, { width: 256, margin: 2 });
     const server = require('./server');
@@ -53,56 +63,66 @@ client.on('qr', async (qr) => {
   setTimeout(() => { suppressLogs = false; }, 3000);
 });
 
-client.on('ready', () => {
+// ── Ready ────────────────────────────────────────────────────────────────────
+
+client.on('ready', async () => {
   retryCount = 0;
   suppressLogs = false;
   console.log(`[${ts()}] ✅ WhatsApp connected`);
 
   const server = require('./server');
-  // Broadcast twice — once immediately, once after a short delay as safety net
   server.broadcast({ type: 'status', data: { connected: true } });
-  setTimeout(() => server.broadcast({ type: 'status', data: { connected: true } }), 2000);
-
-  // Also hide any QR panel on connected clients
   server.broadcast({ type: 'qr_done' });
+  setTimeout(() => server.broadcast({ type: 'status', data: { connected: true } }), 2000);
 
   const telegram = require('./telegram');
   telegram.setConnected(true);
+
+  // Load and broadcast all chats after a short settle delay
+  setTimeout(() => broadcastChats(), 4000);
 });
+
+// ── New message ───────────────────────────────────────────────────────────────
 
 client.on('message', async (msg) => {
   try {
     let chatName = '';
     let isGroup = false;
     let isChannel = false;
+    let chatId = '';
 
     try {
       const chat = await msg.getChat();
-      chatName = chat.name || chat.id.user || 'Unknown';
-      isGroup = chat.isGroup;
+      chatName  = chat.name || chat.id.user || 'Unknown';
+      isGroup   = chat.isGroup;
       isChannel = chat.isChannel || false;
+      chatId    = chat.id._serialized;
     } catch {
       chatName = msg.from || 'Unknown';
+      chatId   = msg.from || '';
     }
 
     const message = {
-      id: msg.id._serialized || msg.id.id || String(Date.now()),
-      body: msg.body || '',
-      senderName: msg._data?.notifyName || msg.author || msg.from || 'Unknown',
+      id:           msg.id._serialized || String(Date.now()),
+      body:         msg.body || '',
+      senderName:   msg._data?.notifyName || msg.author || msg.from || 'Unknown',
       senderNumber: msg.from || '',
       chatName,
+      chatId,
       isGroup,
       isChannel,
+      fromMe:       false,
       mentionedIds: msg.mentionedIds || [],
       hasQuotedMsg: msg.hasQuotedMsg || false,
-      timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+      timestamp:    msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+      type:         msg.type || 'chat',
     };
 
     database.saveMessage(message);
     buffer.addMessage(message);
-    analyzer.classifyUrgency(message).catch((err) => {
-      console.error(`[${ts()}] [whatsapp] classifyUrgency error: ${err.message}`);
-    });
+    analyzer.classifyUrgency(message).catch((err) =>
+      console.error(`[${ts()}] [whatsapp] classifyUrgency error: ${err.message}`)
+    );
 
     const server = require('./server');
     server.broadcast({ type: 'message', data: message });
@@ -110,6 +130,8 @@ client.on('message', async (msg) => {
     console.error(`[${ts()}] [whatsapp] message handler error: ${err.message}`);
   }
 });
+
+// ── Disconnect ────────────────────────────────────────────────────────────────
 
 client.on('disconnected', async (reason) => {
   console.log(`[${ts()}] [whatsapp] Disconnected: ${reason}`);
@@ -121,36 +143,88 @@ client.on('disconnected', async (reason) => {
   telegram.setConnected(false);
 
   if (retryCount >= MAX_RETRIES) {
-    console.error(`[${ts()}] [whatsapp] FATAL: Max reconnect attempts (${MAX_RETRIES}) reached. Stopping.`);
+    console.error(`[${ts()}] [whatsapp] Max reconnect attempts reached. Stopping.`);
     return;
   }
 
   retryCount++;
-  console.log(`[${ts()}] [whatsapp] Reconnect attempt ${retryCount}/${MAX_RETRIES} in 5s...`);
+  console.log(`[${ts()}] [whatsapp] Reconnect attempt ${retryCount}/${MAX_RETRIES} in 5s…`);
   setTimeout(async () => {
-    try {
-      await client.initialize();
-    } catch (err) {
-      console.error(`[${ts()}] [whatsapp] Reconnect initialize failed: ${err.message}`);
-    }
+    try { await client.initialize(); }
+    catch (err) { console.error(`[${ts()}] [whatsapp] Reconnect failed: ${err.message}`); }
   }, 5000);
 });
 
-async function start() {
+// ── Chat helpers (exported) ───────────────────────────────────────────────────
+
+async function broadcastChats() {
   try {
-    await client.initialize();
+    const server = require('./server');
+    const chats = await client.getChats();
+    const chatData = chats.slice(0, 40).map(c => ({
+      id:          c.id._serialized,
+      name:        c.name || c.id.user || 'Unknown',
+      isGroup:     c.isGroup || false,
+      isChannel:   c.isChannel || false,
+      unreadCount: c.unreadCount || 0,
+      timestamp:   c.timestamp ? c.timestamp * 1000 : 0,
+      lastMessage: c.lastMessage ? {
+        body:      msgPreview(c.lastMessage),
+        timestamp: c.lastMessage.timestamp ? c.lastMessage.timestamp * 1000 : 0,
+        fromMe:    c.lastMessage.fromMe || false,
+      } : null,
+    }));
+    chatData.sort((a, b) => b.timestamp - a.timestamp);
+    server.broadcast({ type: 'chats', data: chatData });
+    console.log(`[${ts()}] 📋 Broadcast ${chatData.length} chats to dashboard`);
   } catch (err) {
+    console.error(`[${ts()}] [whatsapp] broadcastChats error: ${err.message}`);
+  }
+}
+
+async function getChats() {
+  const chats = await client.getChats();
+  return chats.slice(0, 40).map(c => ({
+    id:          c.id._serialized,
+    name:        c.name || c.id.user || 'Unknown',
+    isGroup:     c.isGroup || false,
+    isChannel:   c.isChannel || false,
+    unreadCount: c.unreadCount || 0,
+    timestamp:   c.timestamp ? c.timestamp * 1000 : 0,
+    lastMessage: c.lastMessage ? {
+      body:      msgPreview(c.lastMessage),
+      timestamp: c.lastMessage.timestamp ? c.lastMessage.timestamp * 1000 : 0,
+      fromMe:    c.lastMessage.fromMe || false,
+    } : null,
+  })).sort((a, b) => b.timestamp - a.timestamp);
+}
+
+async function getChatMessages(chatId, limit = 50) {
+  const chat = await client.getChatById(chatId);
+  await chat.fetchMessages({ limit });
+  const messages = await chat.fetchMessages({ limit });
+  return messages.map(m => ({
+    id:         m.id._serialized,
+    body:       msgPreview(m),
+    fromMe:     m.fromMe || false,
+    senderName: m.fromMe ? 'You' : (m._data?.notifyName || m.author?.split('@')[0] || 'Unknown'),
+    timestamp:  m.timestamp ? m.timestamp * 1000 : Date.now(),
+    type:       m.type || 'chat',
+  }));
+}
+
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+
+async function start() {
+  try { await client.initialize(); }
+  catch (err) {
     console.error(`[${ts()}] [whatsapp] initialize failed: ${err.message}`);
     throw err;
   }
 }
 
 async function destroy() {
-  try {
-    await client.destroy();
-  } catch {
-    // Ignore destroy errors during shutdown
-  }
+  try { await client.destroy(); } catch {}
 }
 
-module.exports = { start, destroy };
+module.exports = { start, destroy, getChats, getChatMessages, broadcastChats };
