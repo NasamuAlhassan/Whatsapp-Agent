@@ -2,7 +2,15 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('../config');
 const database = require('./database');
 
-const bot = new TelegramBot(config.TELEGRAM_BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(config.TELEGRAM_BOT_TOKEN, {
+  polling: { autoStart: !!config.TELEGRAM_BOT_TOKEN },
+});
+
+// Suppress EFATAL network errors (e.g. HF Spaces can't reach api.telegram.org)
+bot.on('polling_error', (err) => {
+  if (err.code === 'EFATAL' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') return;
+  console.error(`[telegram] polling_error: ${err.message}`);
+});
 
 let waConnected = false;
 let lastDigestTime = null;
