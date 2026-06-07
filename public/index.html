@@ -719,14 +719,25 @@ function connectWS(){
     if(data.type === 'status'){
       setStatus(data.data.connected);
       if(!data.data.connected){
-        // Disconnected — if no chats at all, show QR panel so user can scan/reconnect
-        if(allChats.length === 0) document.getElementById('qrOverlay').classList.remove('hidden');
-        // If we have chats (disk cache or previously loaded): keep sidebar as-is, just show status
+        if(allChats.length === 0){
+          // WhatsApp disconnected before chats ever loaded — reset to clean waiting state
+          // (clears any stuck skeletons from a previous connect attempt)
+          isSyncing = false;
+          hideSyncBanner();
+          if(!document.getElementById('chatListEmpty')){
+            document.getElementById('chatList').innerHTML =
+              '<div class="chat-empty" id="chatListEmpty">Waiting for WhatsApp…</div>';
+          }
+          document.getElementById('qrOverlay').classList.remove('hidden');
+          document.getElementById('qrLoading').style.display = 'block';
+          document.getElementById('qrImg').style.display    = 'none';
+          document.getElementById('authError').style.display = 'none';
+        }
+        // If we have cached chats: keep sidebar as-is, status pill shows Disconnected
       } else {
         // Connected — hide the QR panel
         hideOverlay();
         if(allChats.length === 0){
-          // No disk cache: show skeletons while we wait for fresh chats
           isSyncing = true; showSkeletons(); showSyncBanner();
         }
       }
