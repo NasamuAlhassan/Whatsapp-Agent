@@ -41,6 +41,7 @@ app.get('/', basicAuth, (req, res) => {
 
 let waConnected    = false;
 let lastDigestTime = null;
+let cachedQR       = null;   // Latest QR data URL — replayed to late-connecting browsers
 
 // Load chat list from disk so returning users see chats instantly on page load
 let cachedChats = null;
@@ -138,8 +139,11 @@ app.post('/api/ask', basicAuth, async (req, res) => {
 
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'status', data: { connected: waConnected } }));
-  // Always send cached chats immediately — even if disconnected, the user sees their
-  // last known chat list while WhatsApp reconnects in the background
+  // Replay latest QR to browsers that open after the QR was generated
+  if (!waConnected && cachedQR) {
+    ws.send(JSON.stringify({ type: 'qr', data: cachedQR }));
+  }
+  // Always send cached chats — user sees their last known list while WA reconnects
   if (cachedChats) {
     ws.send(JSON.stringify({ type: 'chats', data: cachedChats }));
   }
@@ -154,6 +158,10 @@ function broadcast(eventObject) {
   }
   if (eventObject.type === 'status')  waConnected    = eventObject.data.connected;
   if (eventObject.type === 'digest')  lastDigestTime = Date.now();
+  if (eventObject.type === 'qr')        cachedQR     = eventObject.data;
+  if (eventObject.type === 'authenticated' || (eventObject.type === 'status' && eventObject.data?.connected)) {
+    cachedQR = null; // QR no longer needed once authenticated or connected
+  }
   if (eventObject.type === 'chats') {
     cachedChats = eventObject.data;
     // Persist to disk so next page load shows chats instantly (non-blocking)
