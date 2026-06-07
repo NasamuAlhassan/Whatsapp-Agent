@@ -251,4 +251,8 @@ async function destroy() {
   try { await client.destroy(); } catch {}
 }
 
-module.exports = { start, destroy, getChats, getChatMessages, broadcastChats };
+async function sendMessage(chatId, text) {
+  return await client.sendMessage(chatId, text);
+}
+
+module.exports = { start, destroy, getChats, getChatMessages, broadcastChats, sendMessage };

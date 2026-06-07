@@ -76,6 +76,16 @@ app.get('/api/chats/:chatId/messages', basicAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/chats/:chatId/send', basicAuth, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+    const wa = require('./whatsapp');
+    await wa.sendMessage(decodeURIComponent(req.params.chatId), text.trim());
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── API: Data ─────────────────────────────────────────────────────────────────
 
 app.get('/api/summaries', basicAuth, (req, res) => {

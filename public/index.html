@@ -259,6 +259,31 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
 .bubble-time{font-size:10px;color:var(--text-m);margin-top:3px;text-align:right}
 .msg-loading{text-align:center;color:var(--text-m);padding:40px;font-size:12px;font-style:italic}
 
+/* ── Message input bar ───────────────────────────────────────────────────── */
+.msg-input-bar{
+  display:flex;align-items:flex-end;gap:10px;padding:10px 14px;
+  background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--glass-b);flex-shrink:0
+}
+.msg-input{
+  flex:1;background:var(--card);border:1px solid var(--glass-b);border-radius:20px;
+  padding:9px 16px;color:var(--text);font-family:inherit;font-size:13px;
+  outline:none;resize:none;max-height:120px;min-height:38px;line-height:1.4;
+  transition:border-color var(--dur),background var(--dur);overflow-y:auto;
+  scrollbar-width:none
+}
+.msg-input::-webkit-scrollbar{display:none}
+.msg-input:focus{border-color:var(--accent);background:var(--glass-hov)}
+.msg-input:disabled{opacity:.45;cursor:not-allowed}
+.send-btn{
+  width:38px;height:38px;border-radius:50%;background:var(--accent);
+  border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:#fff;flex-shrink:0;transition:background var(--dur),transform .1s;
+  box-shadow:var(--accent-glow)
+}
+.send-btn:hover:not(:disabled){background:var(--accent-hov);transform:scale(1.07)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
 /* ── Digest panel ─────────────────────────────────────────────────────────── */
 .digest-panel{
   position:fixed;top:calc(var(--top-h) + 8px);right:8px;width:320px;z-index:50;
@@ -376,6 +401,12 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
       <div class="messages-scroll" id="messagesScroll">
         <div class="msg-loading" id="msgLoading">Loading messages…</div>
       </div>
+      <div class="msg-input-bar">
+        <textarea class="msg-input" id="msgInput" rows="1" placeholder="Type a message…" autocomplete="off"></textarea>
+        <button class="send-btn" id="sendBtn" title="Send" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
     </div>
 
   </div>
@@ -433,9 +464,15 @@ function avatarColor(name){ let h=0; for(let c of (name||'?')) h=(h+c.charCodeAt
 function initials(name){ return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
 
 // ── Status ────────────────────────────────────────────────────────────────────
+let waConnected = false;
 function setStatus(connected){
-  document.getElementById('statusDot').className   = 'status-dot' + (connected ? ' on' : '');
+  waConnected = connected;
+  document.getElementById('statusDot').className    = 'status-dot' + (connected ? ' on' : '');
   document.getElementById('statusLabel').textContent = connected ? 'Connected' : 'Disconnected';
+  const input = document.getElementById('msgInput');
+  const btn   = document.getElementById('sendBtn');
+  if(input){ input.disabled = !connected; input.placeholder = connected ? 'Type a message…' : 'Reconnecting…'; }
+  if(btn)  { btn.disabled   = !connected || !activeChatId; }
 }
 
 // ── Overlay / sync helpers ────────────────────────────────────────────────────
@@ -511,9 +548,11 @@ async function selectChat(chatId, chatName){
   document.getElementById('chatHeaderName').textContent = name;
   document.getElementById('chatHeaderSub').textContent = isGroup ? 'Group' : 'Private chat';
 
-  // Show chat view
+  // Show chat view and enable input
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('chatView').classList.add('active');
+  document.getElementById('sendBtn').disabled = !waConnected;
+  if(waConnected) setTimeout(() => document.getElementById('msgInput').focus(), 50);
 
   // Reset scroll area
   const scroll = document.getElementById('messagesScroll');
@@ -590,6 +629,51 @@ function appendLiveMessage(m){
     scroll.scrollTop = scroll.scrollHeight;
   }
 }
+
+// ── Send message ─────────────────────────────────────────────────────────────
+async function sendMessage(){
+  const input = document.getElementById('msgInput');
+  const btn   = document.getElementById('sendBtn');
+  const text  = input.value.trim();
+  if(!text || !activeChatId || !waConnected) return;
+
+  input.value = '';
+  input.style.height = '';
+  btn.disabled = true;
+
+  // Optimistic bubble
+  const scroll = document.getElementById('messagesScroll');
+  const chat   = allChats.find(c => c.id === activeChatId);
+  scroll.insertAdjacentHTML('beforeend', bubbleHtml(
+    { body: text, fromMe: true, timestamp: Date.now(), type: 'chat' },
+    chat?.isGroup || false
+  ));
+  scroll.scrollTop = scroll.scrollHeight;
+
+  try {
+    const res = await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if(!res.ok) console.error('Send failed:', await res.text());
+  } catch(e){ console.error('Send error:', e); }
+
+  btn.disabled = !waConnected;
+  input.focus();
+}
+
+const msgInput = document.getElementById('msgInput');
+const sendBtn  = document.getElementById('sendBtn');
+
+msgInput.addEventListener('input', () => {
+  msgInput.style.height = '';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+});
+msgInput.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+});
+sendBtn.addEventListener('click', sendMessage);
 
 // ── Search ────────────────────────────────────────────────────────────────────
 function filterAndRender(q){
