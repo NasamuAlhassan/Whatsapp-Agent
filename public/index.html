@@ -181,27 +181,40 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
   box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .qr-loading{font-size:12px;color:var(--text-m);font-style:italic}
 
-/* Syncing state */
-.sync-card{display:none}
-.sync-spinner{
-  width:52px;height:52px;border-radius:50%;
-  border:3px solid var(--glass-b);border-top-color:var(--accent);
-  animation:spin .8s linear infinite
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-.sync-progress{width:200px;height:4px;background:var(--glass-b);border-radius:2px;overflow:hidden}
-.sync-bar{
-  height:100%;background:var(--accent);width:0%;border-radius:2px;
-  animation:prog 2.5s ease-in-out infinite
-}
-@keyframes prog{0%{width:0%}60%{width:75%}100%{width:92%}}
-.sync-step{font-size:12px;color:var(--text-m);text-align:center}
-
 /* Auth error */
 .auth-error{
   background:var(--red-dim);border:1px solid var(--red);border-radius:var(--r-sm);
   padding:10px 14px;font-size:12px;color:var(--red);text-align:center;width:100%
 }
+
+/* ── Skeleton shimmer (chat list while syncing) ───────────────────────────── */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skel-item{display:flex;align-items:center;gap:10px;padding:10px 14px;pointer-events:none}
+.skel-av{
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(90deg,var(--card) 25%,var(--glass-hov) 50%,var(--card) 75%);
+  background-size:400px 100%;animation:shimmer 1.4s ease infinite
+}
+.skel-meta{flex:1;display:flex;flex-direction:column;gap:7px}
+.skel-ln{
+  height:9px;border-radius:5px;
+  background:linear-gradient(90deg,var(--card) 25%,var(--glass-hov) 50%,var(--card) 75%);
+  background-size:400px 100%;animation:shimmer 1.4s ease infinite
+}
+.skel-ln.w70{width:70%}.skel-ln.w45{width:45%}
+
+/* ── Sync banner (non-blocking, top of chat panel) ───────────────────────── */
+.sync-banner{
+  display:flex;align-items:center;gap:7px;padding:7px 14px;
+  background:var(--accent-dim);border-bottom:1px solid rgba(37,211,102,.2);
+  font-size:11px;color:var(--accent);flex-shrink:0;transition:opacity .3s
+}
+.sync-banner.hidden{display:none}
+.sync-dot-anim{
+  width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;
+  animation:blink 1.2s ease infinite
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
 /* Empty state */
 .empty-state{
@@ -314,6 +327,11 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
     <div class="search-wrap">
       <input class="search-input" id="searchInput" type="search" placeholder="Search chats…" aria-label="Search chats"/>
     </div>
+    <!-- Non-blocking sync banner — shows while chats are loading -->
+    <div class="sync-banner hidden" id="syncBanner">
+      <div class="sync-dot-anim"></div>
+      Syncing your chats…
+    </div>
     <div class="chat-list" id="chatList">
       <div class="chat-empty" id="chatListEmpty">Waiting for WhatsApp…</div>
     </div>
@@ -335,17 +353,6 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:13px;
         <div class="qr-loading" id="qrLoading">Generating QR code…</div>
         <div id="authError" class="auth-error" style="display:none">Authentication failed. A new QR code is loading…</div>
         <div class="qr-sub">Open WhatsApp → Linked Devices → Link a Device → scan this code</div>
-      </div>
-
-      <!-- State 2: Syncing (after scan, before ready) -->
-      <div class="sync-card" id="stateSync">
-        <div class="brand-icon" style="width:52px;height:52px;border-radius:16px">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-        </div>
-        <div class="sync-spinner"></div>
-        <div class="sync-title">Syncing your WhatsApp</div>
-        <div class="sync-sub" id="syncStep">Verifying connection…</div>
-        <div class="sync-progress"><div class="sync-bar"></div></div>
       </div>
 
     </div>
@@ -406,6 +413,7 @@ document.getElementById('themeBtn').onclick = () => {
 let allChats     = [];
 let activeChatId = null;
 let latestDigest = null;
+let isSyncing    = false;
 let ws, wsDelay  = 1000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -430,34 +438,42 @@ function setStatus(connected){
   document.getElementById('statusLabel').textContent = connected ? 'Connected' : 'Disconnected';
 }
 
-// ── Overlay states ────────────────────────────────────────────────────────────
+// ── Overlay / sync helpers ────────────────────────────────────────────────────
 function showQR(dataUrl){
   document.getElementById('qrOverlay').classList.remove('hidden');
-  document.getElementById('stateQR').style.display  = 'flex';
-  document.getElementById('stateSync').style.display = 'none';
   document.getElementById('authError').style.display = 'none';
   const img = document.getElementById('qrImg');
   img.src = dataUrl; img.style.display = 'block';
   document.getElementById('qrLoading').style.display = 'none';
 }
 
-function showSyncing(step){
-  document.getElementById('qrOverlay').classList.remove('hidden');
-  document.getElementById('stateQR').style.display   = 'none';
-  document.getElementById('stateSync').style.display = 'flex';
-  if(step) document.getElementById('syncStep').textContent = step;
-}
-
-function hideQR(){
+function hideOverlay(){
   document.getElementById('qrOverlay').classList.add('hidden');
 }
+
+function showSkeletons(){
+  const list  = document.getElementById('chatList');
+  const empty = document.getElementById('chatListEmpty');
+  if(empty) empty.remove();
+  list.innerHTML = Array(10).fill(`
+    <div class="skel-item">
+      <div class="skel-av"></div>
+      <div class="skel-meta">
+        <div class="skel-ln w70"></div>
+        <div class="skel-ln w45"></div>
+      </div>
+    </div>`).join('');
+}
+
+function showSyncBanner(){ document.getElementById('syncBanner').classList.remove('hidden'); }
+function hideSyncBanner(){ document.getElementById('syncBanner').classList.add('hidden'); }
 
 // ── Chat list ─────────────────────────────────────────────────────────────────
 function renderChatList(chats){
   const list  = document.getElementById('chatList');
   const empty = document.getElementById('chatListEmpty');
-  if(!chats.length){ empty.textContent='No chats found'; return; }
-  empty.remove();
+  if(!chats.length){ if(empty) empty.textContent='No chats found'; return; }
+  if(empty) empty.remove();
   list.innerHTML = chats.map(c => `
     <div class="chat-item${c.id===activeChatId?' active':''}" data-id="${esc(c.id)}" data-name="${esc(c.name)}">
       <div class="avatar" style="background:${avatarColor(c.name)}">${initials(c.name)}</div>
@@ -508,6 +524,11 @@ async function selectChat(chatId, chatName){
     const res  = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages`);
     const msgs = await res.json();
     renderMessages(msgs, isGroup);
+    // If still syncing, show non-blocking indicator at top of thread
+    if(isSyncing){
+      scroll.insertAdjacentHTML('afterbegin',
+        '<div class="sync-msg-indicator msg-loading" style="border-bottom:1px solid var(--glass-b);padding-bottom:12px;margin-bottom:8px;font-size:11px">⏳ Syncing older messages…</div>');
+    }
     // Clear unread badge
     const item = document.querySelector(`.chat-item[data-id="${CSS.escape(chatId)}"]`);
     if(item){ const b = item.querySelector('.unread-badge'); if(b) b.remove(); }
@@ -614,9 +635,13 @@ function connectWS(){
     if(data.type === 'status'){
       setStatus(data.data.connected);
       if(data.data.connected && allChats.length === 0){
-        showSyncing('Loading your chats…');
+        // Connected but chats not yet received — show skeleton sidebar
+        isSyncing = true;
+        hideOverlay();
+        showSkeletons();
+        showSyncBanner();
       } else if(data.data.connected && allChats.length > 0){
-        hideQR(); // Already have chats — just hide overlay
+        hideOverlay();
       }
     }
 
@@ -625,26 +650,35 @@ function connectWS(){
     }
 
     if(data.type === 'authenticated'){
-      showSyncing('Phone connected — loading your chats…');
+      // QR scanned — drop the QR overlay, show skeleton sidebar in background
+      isSyncing = true;
+      hideOverlay();
+      showSkeletons();
+      showSyncBanner();
     }
 
     if(data.type === 'auth_failure'){
       // Show error in QR card, wait for new QR
-      document.getElementById('stateQR').style.display   = 'flex';
-      document.getElementById('stateSync').style.display = 'none';
+      document.getElementById('qrOverlay').classList.remove('hidden');
       document.getElementById('authError').style.display = 'block';
       document.getElementById('qrLoading').style.display = 'block';
       document.getElementById('qrImg').style.display = 'none';
     }
 
     if(data.type === 'qr_done'){
-      showSyncing('Finalising connection…');
+      // Connection finalised — if no chats yet, ensure skeleton is showing
+      if(allChats.length === 0){ isSyncing = true; showSkeletons(); showSyncBanner(); }
+      hideOverlay();
     }
 
     if(data.type === 'chats'){
+      isSyncing = false;
       allChats = data.data;
       renderChatList(allChats);
-      hideQR();
+      hideOverlay();
+      hideSyncBanner();
+      // Remove any in-chat sync indicators
+      document.querySelectorAll('.sync-msg-indicator').forEach(el => el.remove());
       document.getElementById('emptyState').style.display = 'flex';
     }
 

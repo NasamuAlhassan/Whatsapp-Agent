@@ -99,8 +99,11 @@ client.on('ready', async () => {
   const telegram = require('./telegram');
   telegram.setConnected(true);
 
-  // Load and broadcast all chats after a short settle delay
-  setTimeout(() => broadcastChats(), 4000);
+  // Load and broadcast all chats, then kick off the first AI digest
+  setTimeout(async () => {
+    await broadcastChats();
+    setTimeout(() => buffer.runDigestNow(), 8000);
+  }, 4000);
 });
 
 // ── New message ───────────────────────────────────────────────────────────────

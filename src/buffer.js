@@ -52,4 +52,4 @@ function stopDigestScheduler() {
   }
 }
 
-module.exports = { addMessage, startDigestScheduler, stopDigestScheduler };
+module.exports = { addMessage, startDigestScheduler, stopDigestScheduler, runDigestNow: runDigest };
