@@ -411,7 +411,7 @@
       </div>
       <div class="brand-text">
         <div class="brand-name">WA Agent</div>
-        <div class="brand-sub">Prince's Dashboard</div>
+        <div class="brand-sub" id="brandSub">Dashboard</div>
       </div>
       <button class="theme-btn" id="themeBtn" aria-label="Toggle light/dark mode">
         <!-- Sun — shown in dark mode (click → light) -->
@@ -636,6 +636,9 @@
       document.getElementById('stat-messages').textContent = status.messageCountToday ?? '—';
       document.getElementById('stat-digest').textContent   = status.lastDigest || 'None yet';
       document.getElementById('stat-tasks').textContent    = tasks.length;
+      if (status.userName) {
+        document.getElementById('brandSub').textContent = `${status.userName}'s Dashboard`;
+      }
 
       const msgsRes = await fetch('/api/messages');
       const msgs    = await msgsRes.json();

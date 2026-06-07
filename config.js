@@ -4,6 +4,7 @@ const config = Object.freeze({
   GROQ_API_KEY: process.env.GROQ_API_KEY || '',
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
   USER_NAME: process.env.USER_NAME || 'User',
+  USER_BIO: process.env.USER_BIO || '',
   USER_PHONE: process.env.USER_PHONE || '',
   DIGEST_INTERVAL_MINUTES: parseInt(process.env.DIGEST_INTERVAL_MINUTES || '15', 10),
   QUIET_START: process.env.QUIET_START || '23:00',

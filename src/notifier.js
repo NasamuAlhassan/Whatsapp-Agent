@@ -1,6 +1,13 @@
-const notifier = require('node-notifier');
+// Desktop notifications only work in local/GUI environments
+const isCloud = process.env.NODE_ENV === 'production' || !process.env.DISPLAY && process.platform !== 'win32' && process.platform !== 'darwin';
+
+let notifier = null;
+if (!isCloud) {
+  try { notifier = require('node-notifier'); } catch {}
+}
 
 function notifyUrgent(message) {
+  if (!notifier) return;
   try {
     notifier.notify({
       title: `🚨 Urgent — ${message.chatName}`,
@@ -8,12 +15,11 @@ function notifyUrgent(message) {
       sound: true,
       wait: false,
     });
-  } catch (err) {
-    console.error(`[notifier] notifyUrgent failed: ${err.message}`);
-  }
+  } catch {}
 }
 
 function notifyTask(task) {
+  if (!notifier) return;
   try {
     notifier.notify({
       title: '📋 New Task',
@@ -21,12 +27,11 @@ function notifyTask(task) {
       sound: false,
       wait: false,
     });
-  } catch (err) {
-    console.error(`[notifier] notifyTask failed: ${err.message}`);
-  }
+  } catch {}
 }
 
 function notifyDigest(digestPayload) {
+  if (!notifier) return;
   try {
     const groupCount = digestPayload.filter((d) => d.type !== 'dm').length;
     const dmCount = digestPayload.filter((d) => d.type === 'dm').length;
@@ -36,9 +41,7 @@ function notifyDigest(digestPayload) {
       sound: false,
       wait: false,
     });
-  } catch (err) {
-    console.error(`[notifier] notifyDigest failed: ${err.message}`);
-  }
+  } catch {}
 }
 
 module.exports = { notifyUrgent, notifyTask, notifyDigest };

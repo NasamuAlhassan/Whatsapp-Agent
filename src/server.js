@@ -90,6 +90,7 @@ app.get('/api/status', basicAuth, (req, res) => {
       lastDigest: lastDigestTime ? new Date(lastDigestTime).toLocaleTimeString() : null,
       messageCountToday: database.getMessageCountToday(),
       nextDigest,
+      userName: config.USER_NAME,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

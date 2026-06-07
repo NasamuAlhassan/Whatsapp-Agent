@@ -167,8 +167,7 @@ async function buildDigest(bufferedMessages) {
         messages: [
           {
             role: 'system',
-            content: `You are an AI assistant for ${config.USER_NAME}, a Computer Science student
-at UG Legon, Ghana and Kusaal NLP researcher. Analyze these WhatsApp messages and return
+            content: `You are an AI assistant for ${config.USER_NAME}${config.USER_BIO ? `, ${config.USER_BIO}` : ''}. Analyze these WhatsApp messages and return
 ONLY valid JSON with no markdown, no backticks, no explanation. Schema:
 {
   "summary": "string (2-3 sentences max)",
