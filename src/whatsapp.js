@@ -52,7 +52,7 @@ client.on('qr', async (qr) => {
   qrcode.generate(qr, { small: true });
 
   try {
-    const dataUrl = await QRCode.toDataURL(qr, { width: 256, margin: 2 });
+    const dataUrl = await QRCode.toDataURL(qr, { width: 512, margin: 2 });
     const server = require('./server');
     server.broadcast({ type: 'qr', data: dataUrl });
   } catch (err) {
