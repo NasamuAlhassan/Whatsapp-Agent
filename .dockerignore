@@ -1,0 +1,9 @@
+node_modules
+.env
+.wwebjs_auth
+.wwebjs_cache
+agent.db
+*.db
+*.sqlite
+.git
+.claude
