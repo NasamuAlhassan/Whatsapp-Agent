@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -388,7 +387,7 @@
     .qr-panel.visible { display: flex; }
     .qr-label { font-size: 11px; font-weight: 600; color: var(--text-m); text-transform: uppercase; letter-spacing: 1px; }
     .qr-hint  { font-size: 10px; color: var(--text-m); text-align: center; line-height: 1.5; }
-    #qrCanvas { border-radius: 8px; max-width: 168px; width: 100%; }
+    #qrImg { border-radius: 8px; max-width: 168px; width: 100%; display: block; }
 
     /* ── Scrollbar ──────────────────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 5px; }
@@ -435,7 +434,7 @@
     <!-- QR code: shown when WhatsApp is disconnected and QR is available -->
     <div class="qr-panel" id="qrPanel" aria-label="WhatsApp QR code">
       <div class="qr-label">Scan to connect</div>
-      <canvas id="qrCanvas"></canvas>
+      <img id="qrImg" src="" alt="WhatsApp QR Code" />
       <div class="qr-hint">Open WhatsApp → Linked Devices → Link a Device</div>
     </div>
 
@@ -831,13 +830,8 @@
       try { data = JSON.parse(event.data); } catch { return; }
 
       if (data.type === 'qr') {
-        const panel = document.getElementById('qrPanel');
-        const canvas = document.getElementById('qrCanvas');
-        panel.classList.add('visible');
-        QRCode.toCanvas(canvas, data.data, {
-          width: 168, margin: 1,
-          color: { dark: '#000000', light: '#ffffff' },
-        }).catch(console.error);
+        document.getElementById('qrPanel').classList.add('visible');
+        document.getElementById('qrImg').src = data.data; // data is a PNG data URL from server
       }
 
       if (data.type === 'status') {

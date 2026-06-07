@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const database = require('./database');
 const buffer = require('./buffer');
 const analyzer = require('./analyzer');
@@ -34,16 +35,19 @@ const client = new Client({
   },
 });
 
-client.on('qr', (qr) => {
+client.on('qr', async (qr) => {
   console.clear();
   console.log('📱 QR ready — scan in the dashboard or here:\n');
   qrcode.generate(qr, { small: true });
 
-  // Broadcast QR to dashboard over WebSocket
+  // Generate PNG data URL on the server and broadcast to dashboard
   try {
+    const dataUrl = await QRCode.toDataURL(qr, { width: 256, margin: 2 });
     const server = require('./server');
-    server.broadcast({ type: 'qr', data: qr });
-  } catch {}
+    server.broadcast({ type: 'qr', data: dataUrl });
+  } catch (err) {
+    console.error('[whatsapp] QR broadcast error:', err.message);
+  }
 
   suppressLogs = true;
   setTimeout(() => { suppressLogs = false; }, 3000);
